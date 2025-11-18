@@ -54,8 +54,15 @@ export default function CourseDetail() {
         await enroll(id);
         showToast("Enrolled successfully", { tone: "success" });
       }
-    } catch {
-      showToast("Action failed. Please try again.", { tone: "error" });
+    } catch (e) {
+      const msg = String(e?.message || e);
+      if (msg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")) {
+        showToast("Enrollments not available yet. Using fallback if configured.", { tone: "warning" });
+      } else if (msg.includes("AUTH_REQUIRED")) {
+        showToast("Please login to manage enrollments.", { tone: "warning" });
+      } else {
+        showToast("Action failed. Please try again.", { tone: "error" });
+      }
     }
   };
 

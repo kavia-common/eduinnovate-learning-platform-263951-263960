@@ -7,6 +7,7 @@ import EmptyState from "../ui/EmptyState";
 import { LMSClient } from "../api/client";
 import { useEnrollments } from "../enrollments/EnrollmentContext";
 import { Link, useSearchParams } from "react-router-dom";
+import { useToast } from "../ui/ToastContext";
 
 /**
  * PUBLIC_INTERFACE
@@ -17,6 +18,7 @@ export default function CourseList() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState({ items: [], total: 0, page: 1, pageSize: 10 });
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
 
   const q = searchParams.get("q") || "";
   const page = Number(searchParams.get("page") || 1);
@@ -29,11 +31,18 @@ export default function CourseList() {
       .then((res) => {
         if (!ignore) setData(res);
       })
+      .catch((e) => {
+        const msg = String(e?.message || e);
+        if (!ignore) {
+          showToast("Failed to load courses. Showing fallback data if available.", { tone: "error" });
+          // keep any existing data; in most cases client handles fallback before throwing
+        }
+      })
       .finally(() => !ignore && setLoading(false));
     return () => {
       ignore = true;
     };
-  }, [q, page, pageSize]);
+  }, [q, page, pageSize, showToast]);
 
   const pages = useMemo(() => {
     const totalPages = Math.max(1, Math.ceil((data?.total || 0) / pageSize));

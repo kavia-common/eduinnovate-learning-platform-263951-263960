@@ -63,8 +63,15 @@ export default function CourseAssignments() {
       } else {
         showToast("Submission failed", { tone: "error" });
       }
-    } catch {
-      showToast("Submission failed", { tone: "error" });
+    } catch (e) {
+      const msg = String(e?.message || e);
+      if (msg.includes("AUTH_REQUIRED")) {
+        showToast("Please login to submit assignments.", { tone: "warning" });
+      } else if (msg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")) {
+        showToast("Submissions not available yet. Using fallback if configured.", { tone: "warning" });
+      } else {
+        showToast("Submission failed", { tone: "error" });
+      }
     }
   };
 

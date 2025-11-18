@@ -4,9 +4,11 @@
 // Reads REACT_APP_API_BASE via config; if not set OR unreachable, falls back to mock data.
 // If Supabase is configured, future iterations can read/write via Supabase tables.
 // No secrets are hardcoded; environment variables are used only.
-// PUBLIC_INTERFACE
+ // PUBLIC_INTERFACE
 import { apiUrl, getApiBase } from "../../config/config";
 import supabase from "../auth/supabaseClient";
+import SupabaseRepository from "../data/supabaseRepository";
+import { makeSupabaseClient } from "../auth/supabaseClient";
 
 // Simple in-memory mock store to simulate server state (courses, enrollments, assignments)
 const mockDB = (() => {
@@ -211,9 +213,22 @@ export const LMSClient = {
 
   /** List courses with optional search/filter and pagination (client-side for mock). */
   async listCourses({ q = "", tags = [], page = 1, pageSize = 10 } = {}) {
-    // Supabase stub for future migration; do not override mock fallback
+    // Prefer Supabase if configured
     if (supabase) {
-      // Placeholder only, keep normal flow
+      try {
+        return await SupabaseRepository.listCourses({ q, tags, page, pageSize });
+      } catch (e) {
+        const errMsg = String(e?.message || e);
+        // Fall back if tables are missing or not authorized or supabase not configured
+        if (
+          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
+          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
+        ) {
+          // continue to REST/mock flow
+        } else {
+          // Unknown Supabase error -> continue to REST/mock
+        }
+      }
     }
     try {
       const params = new URLSearchParams();
@@ -235,13 +250,27 @@ export const LMSClient = {
           pageSize,
         };
       }
-      // For API_ERROR or other errors, surface them to UI or caller
       throw e;
     }
   },
 
   /** Get course detail by id. */
   async getCourse(id) {
+    if (supabase) {
+      try {
+        return await SupabaseRepository.getCourseById(id);
+      } catch (e) {
+        const errMsg = String(e?.message || e);
+        if (
+          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
+          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
+        ) {
+          // proceed to REST/mock
+        } else {
+          // proceed to REST/mock
+        }
+      }
+    }
     try {
       return await apiFetch(`/courses/${encodeURIComponent(id)}`);
     } catch (e) {
@@ -257,6 +286,21 @@ export const LMSClient = {
 
   /** Get assignments for a course. */
   async getAssignments(courseId) {
+    if (supabase) {
+      try {
+        return await SupabaseRepository.listAssignmentsByCourse(courseId);
+      } catch (e) {
+        const errMsg = String(e?.message || e);
+        if (
+          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
+          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
+        ) {
+          // fallback to REST/mock
+        } else {
+          // fallback
+        }
+      }
+    }
     try {
       return await apiFetch(
         `/courses/${encodeURIComponent(courseId)}/assignments`
@@ -272,6 +316,21 @@ export const LMSClient = {
 
   /** Enroll in course. */
   async enroll(courseId) {
+    if (supabase) {
+      try {
+        return await SupabaseRepository.enroll(courseId);
+      } catch (e) {
+        const errMsg = String(e?.message || e);
+        if (
+          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
+          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
+        ) {
+          // fallback
+        } else if (e?.code === "AUTH_REQUIRED") {
+          throw e; // let UI handle auth redirect
+        }
+      }
+    }
     try {
       return await apiFetch(
         `/courses/${encodeURIComponent(courseId)}/enroll`,
@@ -290,6 +349,21 @@ export const LMSClient = {
 
   /** Unenroll from course. */
   async unenroll(courseId) {
+    if (supabase) {
+      try {
+        return await SupabaseRepository.unenroll(courseId);
+      } catch (e) {
+        const errMsg = String(e?.message || e);
+        if (
+          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
+          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
+        ) {
+          // fallback
+        } else if (e?.code === "AUTH_REQUIRED") {
+          throw e;
+        }
+      }
+    }
     try {
       return await apiFetch(
         `/courses/${encodeURIComponent(courseId)}/unenroll`,
@@ -308,6 +382,21 @@ export const LMSClient = {
 
   /** Get current enrollments for "user". In real app, bound to auth. */
   async myCourses() {
+    if (supabase) {
+      try {
+        return await SupabaseRepository.listMyCourses();
+      } catch (e) {
+        const errMsg = String(e?.message || e);
+        if (
+          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
+          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
+        ) {
+          // fallback
+        } else if (e?.code === "AUTH_REQUIRED") {
+          throw e;
+        }
+      }
+    }
     try {
       return await apiFetch(`/me/courses`);
     } catch (e) {
@@ -322,6 +411,25 @@ export const LMSClient = {
 
   /** Submit an assignment (supports text or file metadata placeholder). */
   async submitAssignment(courseId, assignmentId, payload) {
+    if (supabase) {
+      try {
+        const res = await SupabaseRepository.submitAssignment({
+          assignmentId,
+          payload: payload || {},
+        });
+        return { success: Boolean(res?.id) };
+      } catch (e) {
+        const errMsg = String(e?.message || e);
+        if (
+          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
+          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
+        ) {
+          // fallback
+        } else if (e?.code === "AUTH_REQUIRED") {
+          throw e;
+        }
+      }
+    }
     try {
       return await apiFetch(
         `/courses/${encodeURIComponent(courseId)}/assignments/${encodeURIComponent(

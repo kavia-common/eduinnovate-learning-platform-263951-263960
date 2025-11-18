@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { LMSClient } from "../api/client";
 import Loading from "../ui/Loading";
+import { useToast } from "../ui/ToastContext";
 
 /**
  * PUBLIC_INTERFACE
@@ -17,18 +18,23 @@ const EnrollmentContext = createContext({
 export function EnrollmentProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [enrolledIds, setEnrolledIds] = useState(new Set());
+  const { showToast } = useToast();
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const courses = await LMSClient.myCourses();
       setEnrolledIds(new Set(courses.map((c) => c.id)));
-    } catch {
+    } catch (e) {
       setEnrolledIds(new Set());
+      const msg = String(e?.message || e);
+      if (msg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")) {
+        showToast("Enrollments not available yet. Fallback may be used.", { tone: "warning" });
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   const enroll = useCallback(async (courseId) => {
     await LMSClient.enroll(courseId);

@@ -59,18 +59,37 @@ If Confirm Email is enabled in the Supabase Auth settings:
   - Ensure the redirect URL in the confirmation link matches `REACT_APP_FRONTEND_URL`.
   - Verify the Supabase project's Auth > URL configuration includes your site origin.
 
-## Data Access (Future Work)
+## Data Access
 
-The API client (`src/features/api/client.js`) includes stubs to integrate courses, enrollments, and assignments with Supabase tables. Current behavior remains unchanged (REST or local mocks). Future agents should:
+The frontend now includes a Supabase repository at `src/features/data/supabaseRepository.js`. When `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` are set, the app uses Supabase for:
 
-- Create tables (suggested names):
-  - courses (id, title, instructor, tags (array), description, syllabus (json))
-  - enrollments (user_id, course_id, created_at)
-  - assignments (id, course_id, title, due_date, type, status)
-  - submissions (id, assignment_id, user_id, payload (json), submitted_at)
-- Implement RLS policies based on `auth.uid()` and roles (student, educator).
-- Replace mockDB calls in `LMSClient` with Supabase queries using `supabase.from(...).select(...)`.
-- Keep REST fallback if needed.
+- Courses
+  - listCourses (search/tag filters/pagination)
+  - getCourseById (syllabus/sections via `syllabus` JSON column)
+- Assignments
+  - listAssignmentsByCourse
+  - submitAssignment (inserts into `submissions`, status=`submitted`)
+- Enrollments
+  - enroll/unenroll (links current user to a course)
+  - listMyCourses (join enrollments -> courses)
+
+Graceful fallback:
+- If Supabase is not configured or tables/policies are missing, the UI shows a small warning toast and falls back to REST/mocks.
+
+Expected tables (names only; schema not created here):
+- courses (id, title, instructor, tags (array), description, syllabus (json))
+- enrollments (user_id, course_id, created_at)
+- assignments (id, course_id, title, due_date, type, status)
+- submissions (id, assignment_id, user_id, payload (json), submitted_at, status)
+
+RLS: Configure policies using `auth.uid()` so students can read courses, read their enrollments/assignments, and write their own submissions; educators may have extended rights.
+
+Environment variables (frontend):
+- REACT_APP_SUPABASE_URL
+- REACT_APP_SUPABASE_ANON_KEY
+- REACT_APP_FRONTEND_URL (used for emailRedirectTo on signup)
+
+No secrets are hardcoded; values are read from the environment.
 
 ## Notes
 
