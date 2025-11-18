@@ -76,16 +76,28 @@ export function AuthProvider({ children }) {
   const login = useCallback(
     async (email, password) => {
       if (supabaseAvailable) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        const sbUser = data.user || null;
-        const role = deriveRoleFromUser(sbUser, "student");
-        const next = { user: sbUser, role, token: data.session?.access_token || null };
-        setSession(next);
-        return next;
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (error) {
+            // Normalize Supabase error to throw with message code for UI
+            const err = new Error(error.message || "Login failed");
+            err.code = error.status || error.code || "AUTH_LOGIN_FAILED";
+            throw err;
+          }
+          const sbUser = data.user || null;
+          const role = deriveRoleFromUser(sbUser, "student");
+          const next = { user: sbUser, role, token: data.session?.access_token || null };
+          setSession(next);
+          return next;
+        } catch (e) {
+          // Rethrow a clean error with message only (no PII)
+          const err = new Error(e?.message || "Login failed");
+          err.code = e?.code || "AUTH_LOGIN_FAILED";
+          throw err;
+        }
       }
       // Fallback to mock
       const res = await AuthClient.login(email, password);
@@ -105,37 +117,47 @@ export function AuthProvider({ children }) {
     async ({ name, email, password, role }) => {
       const selectedRole = ["student", "educator"].includes(role) ? role : "student";
       if (supabaseAvailable) {
-        // Include user_metadata.role so we can read it later without a separate roles table
-        const emailRedirectTo =
-          process.env.REACT_APP_FRONTEND_URL ||
-          window.location.origin ||
-          undefined;
+        try {
+          // Include user_metadata.role so we can read it later without a separate roles table
+          const emailRedirectTo =
+            process.env.REACT_APP_FRONTEND_URL ||
+            window.location.origin ||
+            undefined;
 
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo,
-            data: {
-              name,
-              role: selectedRole,
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo,
+              data: {
+                name,
+                role: selectedRole,
+              },
             },
-          },
-        });
-        if (error) throw error;
-        const sbUser = data.user || null;
-        // Some projects require email confirmation. The session may be null until confirmed.
-        const effectiveUser = sbUser
-          ? { ...sbUser, user_metadata: { ...(sbUser.user_metadata || {}), name, role: selectedRole } }
-          : null;
-        const nextRole = deriveRoleFromUser(effectiveUser, selectedRole);
-        const next = {
-          user: effectiveUser,
-          token: data.session?.access_token || null,
-          role: nextRole,
-        };
-        setSession(next);
-        return next;
+          });
+          if (error) {
+            const err = new Error(error.message || "Signup failed");
+            err.code = error.status || error.code || "AUTH_SIGNUP_FAILED";
+            throw err;
+          }
+          const sbUser = data.user || null;
+          // Some projects require email confirmation. The session may be null until confirmed.
+          const effectiveUser = sbUser
+            ? { ...sbUser, user_metadata: { ...(sbUser.user_metadata || {}), name, role: selectedRole } }
+            : null;
+          const nextRole = deriveRoleFromUser(effectiveUser, selectedRole);
+          const next = {
+            user: effectiveUser,
+            token: data.session?.access_token || null,
+            role: nextRole,
+          };
+          setSession(next);
+          return next;
+        } catch (e) {
+          const err = new Error(e?.message || "Signup failed");
+          err.code = e?.code || "AUTH_SIGNUP_FAILED";
+          throw err;
+        }
       }
       // Fallback to mock
       const res = await AuthClient.signup({ name, email, password, role: selectedRole });

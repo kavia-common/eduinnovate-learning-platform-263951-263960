@@ -12,7 +12,9 @@ Set the following environment variables in `frontend/.env` (or via deployment en
 
 See `frontend/.env.example` for a template.
 
-Do NOT commit actual secrets.
+Important:
+- Use the exact names above. Do not use REACT_APP_SUPABASE_KEY. If you previously set REACT_APP_SUPABASE_KEY, rename it to REACT_APP_SUPABASE_ANON_KEY.
+- Do NOT commit actual secrets.
 
 ## Client Initialization
 
@@ -27,19 +29,35 @@ If required env variables are missing, the module returns `null` and the app fal
 
 ## Authentication
 
-The `AuthContext` (`src/features/auth/AuthContext.jsx`) has been updated to use Supabase when available:
+The `AuthContext` (`src/features/auth/AuthContext.jsx`) uses Supabase when available and includes robust error handling:
 
-- signUp: `supabase.auth.signUp({ email, password, options: { emailRedirectTo, data: { name, role }}})`
+- signUp: `supabase.auth.signUp({ email, password, options: { emailRedirectTo, data: { name, role }}})`; on success without a session, the UI prompts users to confirm email.
 - signInWithPassword: `supabase.auth.signInWithPassword({ email, password })`
 - signOut: `supabase.auth.signOut()`
 - Session persistence: `supabase.auth.getSession()` on load and `onAuthStateChange` subscription.
 - Role handling: prefers `user.user_metadata.role` (defaults to `student` if absent). `setRole` updates `user_metadata.role`.
+- Errors from Supabase are normalized and surfaced in UI toasts.
 
 For environments without Supabase configuration, the app gracefully falls back to an in-memory mock auth client.
 
 ## Email Redirect
 
 During signup, `emailRedirectTo` uses `REACT_APP_FRONTEND_URL` (or `window.location.origin` as a fallback) so email confirmation links return to the correct site URL.
+
+If Confirm Email is enabled in the Supabase Auth settings:
+- Users must click the confirmation link before they can sign in.
+- After signup, the app shows a toast prompting the user to check email and redirects to the login page.
+
+## Troubleshooting
+
+- If login/signup buttons always fail and you see a console warning like:
+  `[Supabase] REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_ANON_KEY missing. Falling back to mock/local flows.`
+  then your environment variables are not set correctly. Ensure the names match exactly and the app is restarted.
+
+- If you get "Email not confirmed" or "Invalid login credentials":
+  - Confirm the user via the email link.
+  - Ensure the redirect URL in the confirmation link matches `REACT_APP_FRONTEND_URL`.
+  - Verify the Supabase project's Auth > URL configuration includes your site origin.
 
 ## Data Access (Future Work)
 

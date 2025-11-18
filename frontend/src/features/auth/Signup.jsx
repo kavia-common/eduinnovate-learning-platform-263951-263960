@@ -45,11 +45,18 @@ export default function Signup() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await signup(form);
-      showToast("Account created!", { tone: "success" });
-      navigate("/dashboard", { replace: true });
-    } catch {
-      showToast("Signup failed. Try again.", { tone: "error" });
+      const res = await signup(form);
+      // If email confirmation is enabled, Supabase may not return a session
+      if (!res?.token) {
+        showToast("Account created. Please check your email to confirm before signing in.", { tone: "info", duration: 5000 });
+        navigate("/login", { replace: true });
+      } else {
+        showToast("Account created!", { tone: "success" });
+        navigate("/dashboard", { replace: true });
+      }
+    } catch (e) {
+      const msg = e?.message || "Signup failed. Try again.";
+      showToast(msg, { tone: "error" });
     } finally {
       setSubmitting(false);
     }

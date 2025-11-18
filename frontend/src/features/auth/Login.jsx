@@ -44,7 +44,8 @@ export default function Login() {
       const from = location.state?.from || "/dashboard";
       navigate(from, { replace: true });
     } catch (e) {
-      showToast("Login failed. Check your credentials.", { tone: "error" });
+      const msg = e?.message || "Login failed. Check your credentials.";
+      showToast(msg, { tone: "error" });
     } finally {
       setSubmitting(false);
     }
