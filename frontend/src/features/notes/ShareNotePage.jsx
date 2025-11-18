@@ -10,6 +10,8 @@ import Button from "../ui/Button";
  * PUBLIC_INTERFACE
  * ShareNotePage - Lightweight public view for a shared note at /share/:id
  * Works when Supabase is configured (share_id column). Local mode is best-effort via localStorage.
+ * Accessibility:
+ * - Semantic article wrapper, pre-wrap text, and accessible back link/button.
  */
 export default function ShareNotePage() {
   const { id } = useParams();
@@ -40,14 +42,18 @@ export default function ShareNotePage() {
     return (
       <Card title="Shared Note">
         <EmptyState title="Not found" description="This shared note could not be loaded or no longer exists." />
-        <Link to="/notes"><Button variant="ghost">Back to Notes</Button></Link>
+        <Link to="/notes" aria-label="Back to notes list">
+          <Button variant="ghost">Back to Notes</Button>
+        </Link>
       </Card>
     );
   }
 
   return (
     <Card title="Shared Note" subtitle={note.title || "Untitled"}>
-      <div style={{ whiteSpace: "pre-wrap" }}>{note.content || ""}</div>
+      <article aria-label="Shared note content" style={{ whiteSpace: "pre-wrap" }}>
+        {note.content || ""}
+      </article>
     </Card>
   );
 }

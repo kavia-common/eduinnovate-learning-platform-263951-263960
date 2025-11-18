@@ -10,6 +10,11 @@ import { useAuth } from "../auth/AuthContext";
 /**
  * PUBLIC_INTERFACE
  * NotesListPage - browse/search/delete saved notes. Works with Supabase or local fallback.
+ * Accessibility:
+ * - Semantic structure within Card
+ * - Skip link to main notes list
+ * - Buttons have accessible names; add copy to clipboard with toasts
+ * - Responsive text overflow handling
  */
 export default function NotesListPage() {
   const { showToast } = useToast();
@@ -60,9 +65,18 @@ export default function NotesListPage() {
     }
   };
 
+  const copyNote = async (note) => {
+    try {
+      await navigator.clipboard.writeText(String(note.content || ""));
+      showToast("Note content copied", { tone: "success" });
+    } catch {
+      showToast("Copy failed", { tone: "error" });
+    }
+  };
+
   const headerRight = useMemo(() => {
     return (
-      <form onSubmit={onSearch} style={{ display: "flex", gap: 8 }}>
+      <form onSubmit={onSearch} role="search" aria-label="Search notes" style={{ display: "flex", gap: 8 }}>
         <input
           aria-label="Search notes"
           placeholder="Search notes..."
@@ -81,46 +95,66 @@ export default function NotesListPage() {
   }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Card title="🗒️ Notes" subtitle={isAuthenticated ? "Your saved study notes" : "Local notes (sign in to sync)"} headerRight={headerRight}>
-      {loading ? (
-        <Loading label="Loading notes..." />
-      ) : items.length === 0 ? (
-        <EmptyState title="No notes yet" description="Save AI responses as notes to revisit later." />
-      ) : (
-        <div role="list" style={{ display: "grid", gap: 10 }}>
-          {items.map((n) => (
-            <div
-              key={n.id}
-              role="listitem"
-              style={{
-                border: "1px solid rgba(17,24,39,0.06)",
-                borderRadius: 12,
-                padding: 12,
-                background: "white",
-                boxShadow: "var(--ocean-shadow)",
-                display: "grid",
-                gap: 6,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                <h4 style={{ margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {n.title || "Untitled"}
-                </h4>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button variant="ghost" onClick={() => remove(n.id)} ariaLabel="Delete note">Delete</Button>
+    <Card
+      title="🗒️ Notes"
+      subtitle={isAuthenticated ? "Your saved study notes" : "Local notes (sign in to sync)"}
+      headerRight={headerRight}
+    >
+      {/* Skip link for keyboard users */}
+      <a href="#notes-content" className="nav-link" style={{ position: "absolute", left: -9999 }}>
+        Skip to notes content
+      </a>
+
+      <div id="notes-content" role="main">
+        {loading ? (
+          <Loading label="Loading notes..." />
+        ) : items.length === 0 ? (
+          <EmptyState title="No notes yet" description="Save AI responses as notes to revisit later." />
+        ) : (
+          <div role="list" style={{ display: "grid", gap: 10 }}>
+            {items.map((n) => (
+              <article
+                key={n.id}
+                role="listitem"
+                aria-label={`Note titled ${n.title || "Untitled"}, created ${new Date(
+                  n.created_at || Date.now()
+                ).toLocaleString()}`}
+                style={{
+                  border: "1px solid rgba(17,24,39,0.06)",
+                  borderRadius: 12,
+                  padding: 12,
+                  background: "white",
+                  boxShadow: "var(--ocean-shadow)",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <header style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <h3 style={{ margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 16 }}>
+                    {n.title || "Untitled"}
+                  </h3>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Button variant="ghost" onClick={() => copyNote(n)} ariaLabel="Copy note content">Copy</Button>
+                    <Button variant="ghost" onClick={() => remove(n.id)} ariaLabel="Delete note">Delete</Button>
+                  </div>
+                </header>
+                <div style={{ color: "var(--ocean-muted)", fontSize: 13 }}>
+                  {new Date(n.created_at || Date.now()).toLocaleString()}
                 </div>
-              </div>
-              <div style={{ color: "var(--ocean-muted)", fontSize: 13 }}>
-                {new Date(n.created_at || Date.now()).toLocaleString()}
-              </div>
-              <div style={{ whiteSpace: "pre-wrap" }}>
-                {String(n.content || "").slice(0, 400)}
-                {String(n.content || "").length > 400 ? "…" : ""}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    maxHeight: 220,
+                    overflow: "auto",
+                  }}
+                >
+                  {String(n.content || "")}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

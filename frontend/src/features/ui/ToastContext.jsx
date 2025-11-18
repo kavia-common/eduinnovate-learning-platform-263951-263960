@@ -38,15 +38,19 @@ export function ToastProvider({ children }) {
           <div
             key={t.id}
             role="status"
+            aria-live="polite"
+            aria-label={`${t.tone} message`}
             style={{
               background: "var(--ocean-surface)",
               border: "1px solid rgba(17,24,39,0.08)",
               boxShadow: "var(--ocean-shadow)",
-              borderLeft: `4px solid ${t.tone === "success"
-                ? "var(--ocean-secondary)"
-                : t.tone === "error"
-                ? "var(--ocean-error)"
-                : "var(--ocean-primary)"}`,
+              borderLeft: `4px solid ${
+                t.tone === "success"
+                  ? "var(--ocean-secondary)"
+                  : t.tone === "error"
+                  ? "var(--ocean-error)"
+                  : "var(--ocean-primary)"
+              }`,
               padding: "10px 12px",
               borderRadius: 10,
               minWidth: 220,
