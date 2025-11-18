@@ -11,7 +11,8 @@ import { useAuth } from "../../features/auth/AuthContext";
  */
 export default function TopNav() {
   const { isAuthenticated, user, role, logout } = useAuth();
-  const initials = (user?.name || user?.email || "U").slice(0, 1).toUpperCase();
+  const displayName = user?.name || user?.user_metadata?.name || user?.email || "U";
+  const initials = String(displayName).slice(0, 1).toUpperCase();
 
   return (
     <header className="lms-topnav" role="banner" aria-label="Top navigation">
@@ -42,7 +43,7 @@ export default function TopNav() {
                 className="avatar"
                 role="img"
                 aria-label="User profile"
-                title={user?.name || user?.email || "User"}
+                title={displayName}
               >
                 {initials}
               </div>

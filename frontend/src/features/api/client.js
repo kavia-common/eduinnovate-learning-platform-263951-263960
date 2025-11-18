@@ -1,9 +1,11 @@
 //
 // API client for LMS frontend.
 // Reads REACT_APP_API_BASE via config; if not set, falls back to mock data with console warning.
+// If Supabase is configured, future iterations can read/write via Supabase tables.
 // No secrets are hardcoded; environment variables are used only.
 // PUBLIC_INTERFACE
 import { apiUrl, getApiBase } from "../../config/config";
+import supabase from "../auth/supabaseClient";
 
 // Simple in-memory mock store to simulate server state (courses, enrollments, assignments)
 const mockDB = (() => {
@@ -124,7 +126,12 @@ const mockDB = (() => {
       const list = assignments[courseId] || [];
       const idx = list.findIndex((a) => a.id === assignmentId);
       if (idx >= 0) {
-        list[idx] = { ...list[idx], status: "Submitted", submittedAt: new Date().toISOString(), payload: payload ? { ...payload, content: undefined } : undefined };
+        list[idx] = {
+          ...list[idx],
+          status: "Submitted",
+          submittedAt: new Date().toISOString(),
+          payload: payload ? { ...payload, content: undefined } : undefined,
+        };
         return { success: true };
       }
       return { success: false, error: "Assignment not found" };
@@ -170,8 +177,19 @@ export async function apiFetch(path, options = {}) {
  * LMSClient - high-level API with graceful mock fallback.
  */
 export const LMSClient = {
+  /**
+   * INTERNAL NOTE: When Supabase is configured, future agents can implement:
+   * - Courses table: select with ilike filters for q and tags join table
+   * - Use RLS bound to auth user
+   * For now, we keep REST/mocks behavior and only add placeholders.
+   */
+
   /** List courses with optional search/filter and pagination (client-side for mock). */
   async listCourses({ q = "", tags = [], page = 1, pageSize = 10 } = {}) {
+    // Supabase stub for future migration
+    if (supabase) {
+      // Placeholder: prefer backend API if present; otherwise still use mock until tables exist
+    }
     try {
       const params = new URLSearchParams();
       if (q) params.set("q", q);

@@ -10,6 +10,11 @@ import { useAuth } from "./AuthContext";
  */
 export default function Profile() {
   const { user, role, logout } = useAuth();
+  const displayName =
+    user?.name ||
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    "—";
 
   return (
     <Card
@@ -20,7 +25,7 @@ export default function Profile() {
       <div style={{ display: "grid", gap: 10, maxWidth: 520 }}>
         <div>
           <div style={{ fontSize: 14, color: "var(--ocean-muted)" }}>Name</div>
-          <div style={{ fontWeight: 600 }}>{user?.name || "—"}</div>
+          <div style={{ fontWeight: 600 }}>{displayName}</div>
         </div>
         <div>
           <div style={{ fontSize: 14, color: "var(--ocean-muted)" }}>Email</div>

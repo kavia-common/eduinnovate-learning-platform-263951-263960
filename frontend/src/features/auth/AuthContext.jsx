@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AuthClient } from "./authClient";
+import supabase from "./supabaseClient";
 
 /**
  * PUBLIC_INTERFACE
@@ -17,96 +18,233 @@ const AuthContext = createContext({
 });
 
 /**
- * Persistent storage key for auth session.
+ * Persistent storage key for mock/local auth session (used only when Supabase is not configured).
  */
 const STORAGE_KEY = "lms.auth.session";
+
+function deriveRoleFromUser(user, fallbackRole = "student") {
+  // Prefer Supabase user_metadata.role if available
+  const metaRole =
+    user?.user_metadata?.role ||
+    user?.app_metadata?.role ||
+    user?.role; // compatibility with mock
+  return typeof metaRole === "string" && metaRole.trim()
+    ? metaRole.trim()
+    : fallbackRole;
+}
 
 /**
  * PUBLIC_INTERFACE
  * AuthProvider - React provider that manages authentication state with persistence.
+ * Uses Supabase Auth if configured; otherwise falls back to mock/local AuthClient.
  */
 export function AuthProvider({ children }) {
+  const supabaseAvailable = Boolean(supabase);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" ? parsed : null;
-    } catch {
-      return null;
+    // For mock/local fallback we keep previous behavior
+    if (!supabaseAvailable) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : null;
+      } catch {
+        return null;
+      }
     }
+    return null;
   });
 
-  const persist = useCallback((next) => {
-    try {
-      if (next) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
+  const persist = useCallback(
+    (next) => {
+      if (!supabaseAvailable) {
+        try {
+          if (next) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          } else {
+            localStorage.removeItem(STORAGE_KEY);
+          }
+        } catch {
+          // ignore storage errors silently to avoid blocking UX
+        }
       }
-    } catch {
-      // ignore storage errors silently to avoid blocking UX
-    }
-  }, []);
+    },
+    [supabaseAvailable]
+  );
 
-  const login = useCallback(async (email, password) => {
-    const res = await AuthClient.login(email, password);
-    const next = {
-      user: res.user,
-      token: res.token || null,
-      role: res.user?.role || "student",
-    };
-    setSession(next);
-    persist(next);
-    return next;
-  }, [persist]);
+  const login = useCallback(
+    async (email, password) => {
+      if (supabaseAvailable) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        const sbUser = data.user || null;
+        const role = deriveRoleFromUser(sbUser, "student");
+        const next = { user: sbUser, role, token: data.session?.access_token || null };
+        setSession(next);
+        return next;
+      }
+      // Fallback to mock
+      const res = await AuthClient.login(email, password);
+      const next = {
+        user: res.user,
+        token: res.token || null,
+        role: res.user?.role || "student",
+      };
+      setSession(next);
+      persist(next);
+      return next;
+    },
+    [persist, supabaseAvailable]
+  );
 
-  const signup = useCallback(async ({ name, email, password, role }) => {
-    const res = await AuthClient.signup({ name, email, password, role });
-    const next = {
-      user: res.user,
-      token: res.token || null,
-      role: res.user?.role || role || "student",
-    };
-    setSession(next);
-    persist(next);
-    return next;
-  }, [persist]);
+  const signup = useCallback(
+    async ({ name, email, password, role }) => {
+      const selectedRole = ["student", "educator"].includes(role) ? role : "student";
+      if (supabaseAvailable) {
+        // Include user_metadata.role so we can read it later without a separate roles table
+        const emailRedirectTo =
+          process.env.REACT_APP_FRONTEND_URL ||
+          window.location.origin ||
+          undefined;
 
-  const logout = useCallback(async () => {
-    try {
-      await AuthClient.logout();
-    } catch {
-      // ignore
-    }
-    setSession(null);
-    persist(null);
-  }, [persist]);
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo,
+            data: {
+              name,
+              role: selectedRole,
+            },
+          },
+        });
+        if (error) throw error;
+        const sbUser = data.user || null;
+        // Some projects require email confirmation. The session may be null until confirmed.
+        const effectiveUser = sbUser
+          ? { ...sbUser, user_metadata: { ...(sbUser.user_metadata || {}), name, role: selectedRole } }
+          : null;
+        const nextRole = deriveRoleFromUser(effectiveUser, selectedRole);
+        const next = {
+          user: effectiveUser,
+          token: data.session?.access_token || null,
+          role: nextRole,
+        };
+        setSession(next);
+        return next;
+      }
+      // Fallback to mock
+      const res = await AuthClient.signup({ name, email, password, role: selectedRole });
+      const next = {
+        user: res.user,
+        token: res.token || null,
+        role: res.user?.role || selectedRole,
+      };
+      setSession(next);
+      persist(next);
+      return next;
+    },
+    [persist, supabaseAvailable]
+  );
 
-  const setRole = useCallback((role) => {
-    if (!session) return;
-    const next = { ...session, role, user: { ...(session.user || {}), role } };
-    setSession(next);
-    persist(next);
-  }, [session, persist]);
+  const logout = useCallback(
+    async () => {
+      try {
+        if (supabaseAvailable) {
+          await supabase.auth.signOut();
+        } else {
+          await AuthClient.logout();
+        }
+      } catch {
+        // ignore
+      }
+      setSession(null);
+      persist(null);
+    },
+    [persist, supabaseAvailable]
+  );
+
+  const setRole = useCallback(
+    async (role) => {
+      if (!session) return;
+      const normalized = ["student", "educator"].includes(role) ? role : "student";
+      if (supabaseAvailable) {
+        try {
+          // Update user metadata with new role
+          const { data, error } = await supabase.auth.updateUser({
+            data: { role: normalized },
+          });
+          if (error) throw error;
+          const updatedUser = data.user || session.user;
+          const next = { ...session, role: deriveRoleFromUser(updatedUser, normalized), user: updatedUser };
+          setSession(next);
+          return next;
+        } catch {
+          // If update fails, do not change local state
+          return session;
+        }
+      }
+      // Mock/local update
+      const next = { ...session, role: normalized, user: { ...(session.user || {}), role: normalized } };
+      setSession(next);
+      persist(next);
+      return next;
+    },
+    [session, persist, supabaseAvailable]
+  );
 
   useEffect(() => {
-    // Simulate silent session validation/restore
     let ignore = false;
+    setLoading(true);
+
+    if (!supabaseAvailable) {
+      // Preserve previous local session behavior
+      setLoading(false);
+      return () => { ignore = true; };
+    }
+
+    // Supabase: fetch current session and subscribe to changes
     (async () => {
-      setLoading(true);
       try {
-        if (session && session.user) {
-          // Optionally we could validate token here via AuthClient.me(); fall back if API is not present.
-          // noop for now
+        const { data: { session: current } } = await supabase.auth.getSession();
+        const currentUser = current?.user || null;
+        if (!ignore) {
+          if (currentUser) {
+            const role = deriveRoleFromUser(currentUser, "student");
+            setSession({ user: currentUser, role, token: current?.access_token || null });
+          } else {
+            setSession(null);
+          }
         }
       } finally {
         if (!ignore) setLoading(false);
       }
     })();
-    return () => { ignore = true; };
-  }, [session]);
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, sbSession) => {
+      if (ignore) return;
+      const sbUser = sbSession?.user || null;
+      if (sbUser) {
+        const role = deriveRoleFromUser(sbUser, "student");
+        setSession({ user: sbUser, role, token: sbSession?.access_token || null });
+      } else {
+        setSession(null);
+      }
+    });
+
+    return () => {
+      ignore = true;
+      try {
+        subscription?.subscription?.unsubscribe?.();
+      } catch {
+        // ignore
+      }
+    };
+  }, [supabaseAvailable]);
 
   const value = useMemo(() => {
     return {
