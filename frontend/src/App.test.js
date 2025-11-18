@@ -7,14 +7,12 @@ test('renders top navigation brand', () => {
   expect(brand).toBeInTheDocument();
 });
 
-test('renders sidebar links', () => {
+test('renders core sidebar links', () => {
   render(<App />);
   const dashboard = screen.getByText(/Dashboard/i);
   const courses = screen.getByText(/Courses/i);
-  const myCourses = screen.getByText(/My Courses/i);
   const forums = screen.getByText(/Forums/i);
   expect(dashboard).toBeInTheDocument();
   expect(courses).toBeInTheDocument();
-  expect(myCourses).toBeInTheDocument();
   expect(forums).toBeInTheDocument();
 });

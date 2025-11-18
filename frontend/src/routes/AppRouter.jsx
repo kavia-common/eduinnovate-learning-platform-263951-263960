@@ -8,11 +8,16 @@ import CourseList from "../features/courses/CourseList";
 import CourseDetail from "../features/courses/CourseDetail";
 import MyCourses from "../features/courses/MyCourses";
 import CourseAssignments from "../features/assignments/CourseAssignments";
+import Login from "../features/auth/Login";
+import Signup from "../features/auth/Signup";
+import Profile from "../features/auth/Profile";
+import ProtectedRoute from "../features/auth/ProtectedRoute";
 
 /**
  * PUBLIC_INTERFACE
  * AppRouter - Registers all routes and applies the shared AppLayout.
  * Includes LMS sections with catalog, details, enrollments, and assignments.
+ * Adds auth routes and protection for sensitive views.
  */
 export default function AppRouter() {
   return (
@@ -23,10 +28,34 @@ export default function AppRouter() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/courses" element={<CourseList />} />
           <Route path="/courses/:id" element={<CourseDetail />} />
-          <Route path="/my-courses" element={<MyCourses />} />
-          <Route path="/courses/:id/assignments" element={<CourseAssignments />} />
+          <Route
+            path="/my-courses"
+            element={
+              <ProtectedRoute>
+                <MyCourses />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/courses/:id/assignments"
+            element={
+              <ProtectedRoute>
+                <CourseAssignments />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/forums" element={<Forums />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

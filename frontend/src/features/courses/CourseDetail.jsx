@@ -4,9 +4,10 @@ import Button from "../ui/Button";
 import Badge from "../ui/Badge";
 import Loading from "../ui/Loading";
 import { LMSClient } from "../api/client";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useEnrollments } from "../enrollments/EnrollmentContext";
 import { useToast } from "../ui/ToastContext";
+import { useAuth } from "../auth/AuthContext";
 
 /**
  * PUBLIC_INTERFACE
@@ -18,6 +19,9 @@ export default function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const { enrolledIds, enroll, unenroll } = useEnrollments();
   const { showToast } = useToast();
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     let ignore = false;
@@ -32,8 +36,17 @@ export default function CourseDetail() {
 
   const isEnrolled = enrolledIds.has(id);
 
+  const ensureAuth = () => {
+    if (!isAuthenticated) {
+      navigate("/login", { replace: true, state: { from: location.pathname + location.search } });
+      return false;
+    }
+    return true;
+  };
+
   const onToggle = async () => {
     try {
+      if (!ensureAuth()) return;
       if (isEnrolled) {
         await unenroll(id);
         showToast("Unenrolled successfully", { tone: "success" });
