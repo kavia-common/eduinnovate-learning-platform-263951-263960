@@ -11,10 +11,10 @@ test('renders sidebar links', () => {
   render(<App />);
   const dashboard = screen.getByText(/Dashboard/i);
   const courses = screen.getByText(/Courses/i);
-  const assignments = screen.getByText(/Assignments/i);
+  const myCourses = screen.getByText(/My Courses/i);
   const forums = screen.getByText(/Forums/i);
   expect(dashboard).toBeInTheDocument();
   expect(courses).toBeInTheDocument();
-  expect(assignments).toBeInTheDocument();
+  expect(myCourses).toBeInTheDocument();
   expect(forums).toBeInTheDocument();
 });

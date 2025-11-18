@@ -10,7 +10,7 @@ export default function Sidebar() {
   const links = [
     { to: "/dashboard", label: "Dashboard", icon: "📊" },
     { to: "/courses", label: "Courses", icon: "📚" },
-    { to: "/assignments", label: "Assignments", icon: "📝" },
+    { to: "/my-courses", label: "My Courses", icon: "🎓" },
     { to: "/forums", label: "Forums", icon: "💬" },
     { to: "/settings", label: "Settings", icon: "⚙️" },
   ];
