@@ -12,6 +12,8 @@ import Login from "../features/auth/Login";
 import Signup from "../features/auth/Signup";
 import Profile from "../features/auth/Profile";
 import ProtectedRoute from "../features/auth/ProtectedRoute";
+import NotesListPage from "../features/notes/NotesListPage";
+import ShareNotePage from "../features/notes/ShareNotePage";
 
 /**
  * PUBLIC_INTERFACE
@@ -56,6 +58,8 @@ export default function AppRouter() {
               </ProtectedRoute>
             }
           />
+          <Route path="/notes" element={<NotesListPage />} />
+          <Route path="/share/:id" element={<ShareNotePage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

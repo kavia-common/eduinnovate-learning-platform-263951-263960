@@ -48,17 +48,6 @@ If Confirm Email is enabled in the Supabase Auth settings:
 - Users must click the confirmation link before they can sign in.
 - After signup, the app shows a toast prompting the user to check email and redirects to the login page.
 
-## Troubleshooting
-
-- If login/signup buttons always fail and you see a console warning like:
-  `[Supabase] REACT_APP_SUPABASE_URL or REACT_APP_SUPABASE_ANON_KEY missing. Falling back to mock/local flows.`
-  then your environment variables are not set correctly. Ensure the names match exactly and the app is restarted.
-
-- If you get "Email not confirmed" or "Invalid login credentials":
-  - Confirm the user via the email link.
-  - Ensure the redirect URL in the confirmation link matches `REACT_APP_FRONTEND_URL`.
-  - Verify the Supabase project's Auth > URL configuration includes your site origin.
-
 ## Data Access
 
 The frontend now includes a Supabase repository at `src/features/data/supabaseRepository.js`. When `REACT_APP_SUPABASE_URL` and `REACT_APP_SUPABASE_ANON_KEY` are set, the app uses Supabase for:
@@ -81,8 +70,30 @@ Expected tables (names only; schema not created here):
 - enrollments (user_id, course_id, created_at)
 - assignments (id, course_id, title, due_date, type, status)
 - submissions (id, assignment_id, user_id, payload (json), submitted_at, status)
+- notes (id uuid default uuid_generate_v4(), user_id uuid, context_type text, context_id text, title text, content text, created_at timestamptz default now(), share_id text null)
 
-RLS: Configure policies using `auth.uid()` so students can read courses, read their enrollments/assignments, and write their own submissions; educators may have extended rights.
+Recommended RLS Policies:
+- notes: users can insert/update/delete/select where user_id = auth.uid()
+- For public sharing, add a policy to allow select for rows where share_id is not null.
+
+Example SQL (adjust to your project):
+```sql
+alter table notes enable row level security;
+
+create policy "Notes - owner can CRUD"
+on notes as permissive
+for all
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+-- Public read for shared notes (read-only)
+create policy "Notes - public read shared"
+on notes
+for select
+to anon, authenticated
+using (share_id is not null);
+```
 
 Environment variables (frontend):
 - REACT_APP_SUPABASE_URL
@@ -91,8 +102,25 @@ Environment variables (frontend):
 
 No secrets are hardcoded; values are read from the environment.
 
-## Notes
+## Notes Feature
 
-- Avoid logging PII or secrets.
-- Keep environment-specific values external.
-- Role defaults to `student` when metadata is not set.
+- The Notes feature stores notes in `notes` table when Supabase is configured and user is authenticated.
+- Fallback: stores notes in localStorage if Supabase is not configured.
+- Share Links:
+  - Supabase: generates a `share_id` and produces `/share/:id` URLs that render read-only content.
+  - Local: copies content to clipboard (no server share).
+
+## Accessibility & UX
+
+- Notes and AI history lists are keyboard accessible and include ARIA labels.
+- Toasts provide non-blocking feedback for save/share/delete actions.
+
+## Troubleshooting
+
+- If `/share/:id` shows "Not found", ensure the `notes` table has `share_id` populated for that note and the RLS policy allows public select of shared notes.
+
+## Security Notes
+
+- Do not expose secrets in the frontend.
+- Avoid logging PII.
+- Ensure RLS policies are in place for the `notes` table.

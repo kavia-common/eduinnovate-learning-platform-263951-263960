@@ -14,6 +14,7 @@ export default function Sidebar() {
   const baseLinks = [
     { to: "/dashboard", label: "Dashboard", icon: "📊" },
     { to: "/courses", label: "Courses", icon: "📚" },
+    { to: "/notes", label: "Notes", icon: "🗒️" },
     { to: "/forums", label: "Forums", icon: "💬" },
     { to: "/settings", label: "Settings", icon: "⚙️" },
   ];
