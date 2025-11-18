@@ -1,6 +1,7 @@
 //
+//
 // API client for LMS frontend.
-// Reads REACT_APP_API_BASE via config; if not set, falls back to mock data with console warning.
+// Reads REACT_APP_API_BASE via config; if not set OR unreachable, falls back to mock data.
 // If Supabase is configured, future iterations can read/write via Supabase tables.
 // No secrets are hardcoded; environment variables are used only.
 // PUBLIC_INTERFACE
@@ -130,6 +131,7 @@ const mockDB = (() => {
           ...list[idx],
           status: "Submitted",
           submittedAt: new Date().toISOString(),
+          // Avoid storing large text content; keep minimal metadata in mock
           payload: payload ? { ...payload, content: undefined } : undefined,
         };
         return { success: true };
@@ -142,7 +144,8 @@ const mockDB = (() => {
 /**
  * PUBLIC_INTERFACE
  * apiFetch - wrapper around fetch that uses configured API base.
- * If base URL is unavailable, throws to allow mock fallback in higher-level functions.
+ * If base URL is unavailable or network/CORS fails, throws specific error codes
+ * so callers can fall back to mock mode without causing uncaught TypeErrors.
  * @param {string} path - API path beginning with "/"
  * @param {RequestInit} options - fetch options
  * @returns {Promise<any>} parsed JSON
@@ -152,24 +155,46 @@ export async function apiFetch(path, options = {}) {
   if (!base) {
     // eslint-disable-next-line no-console
     console.warn(
-      "[LMS API] REACT_APP_API_BASE not set; using mock data for:",
+      "[LMS API] API base not set; using mock data for:",
       path
     );
     throw new Error("NO_API_BASE");
   }
-  const res = await fetch(apiUrl(path), {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+
+  let res;
+  try {
+    res = await fetch(apiUrl(path), {
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch (err) {
+    // Catch low-level fetch failures: CORS, network down, DNS, mixed content (HTTP on HTTPS)
+    // eslint-disable-next-line no-console
+    console.warn("[LMS API] Fetch failed; falling back to mock if supported:", {
+      path,
+      message: err?.message || String(err),
+    });
+    throw new Error("API_UNREACHABLE");
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    // 401/403/5xx can be handled by callers as needed; not falling back to mock automatically here
     throw new Error(`API_ERROR ${res.status}: ${text || res.statusText}`);
   }
+
   if (res.status === 204) return null;
-  return res.json();
+
+  // Robust JSON parse with guard
+  try {
+    return await res.json();
+  } catch {
+    // In case of invalid JSON
+    throw new Error("API_INVALID_JSON");
+  }
 }
 
 /**
@@ -186,9 +211,9 @@ export const LMSClient = {
 
   /** List courses with optional search/filter and pagination (client-side for mock). */
   async listCourses({ q = "", tags = [], page = 1, pageSize = 10 } = {}) {
-    // Supabase stub for future migration
+    // Supabase stub for future migration; do not override mock fallback
     if (supabase) {
-      // Placeholder: prefer backend API if present; otherwise still use mock until tables exist
+      // Placeholder only, keep normal flow
     }
     try {
       const params = new URLSearchParams();
@@ -198,7 +223,8 @@ export const LMSClient = {
       params.set("pageSize", String(pageSize));
       return await apiFetch(`/courses?${params.toString()}`);
     } catch (e) {
-      if (String(e.message).includes("NO_API_BASE")) {
+      const msg = String(e?.message || e);
+      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
         const all = mockDB.searchCourses({ q, tags });
         const start = (page - 1) * pageSize;
         const items = all.slice(start, start + pageSize);
@@ -209,6 +235,7 @@ export const LMSClient = {
           pageSize,
         };
       }
+      // For API_ERROR or other errors, surface them to UI or caller
       throw e;
     }
   },
@@ -218,7 +245,8 @@ export const LMSClient = {
     try {
       return await apiFetch(`/courses/${encodeURIComponent(id)}`);
     } catch (e) {
-      if (String(e.message).includes("NO_API_BASE")) {
+      const msg = String(e?.message || e);
+      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
         const c = mockDB.getCourse(id);
         if (!c) throw new Error("NOT_FOUND");
         return c;
@@ -230,9 +258,12 @@ export const LMSClient = {
   /** Get assignments for a course. */
   async getAssignments(courseId) {
     try {
-      return await apiFetch(`/courses/${encodeURIComponent(courseId)}/assignments`);
+      return await apiFetch(
+        `/courses/${encodeURIComponent(courseId)}/assignments`
+      );
     } catch (e) {
-      if (String(e.message).includes("NO_API_BASE")) {
+      const msg = String(e?.message || e);
+      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
         return mockDB.getAssignments(courseId);
       }
       throw e;
@@ -242,11 +273,15 @@ export const LMSClient = {
   /** Enroll in course. */
   async enroll(courseId) {
     try {
-      return await apiFetch(`/courses/${encodeURIComponent(courseId)}/enroll`, {
-        method: "POST",
-      });
+      return await apiFetch(
+        `/courses/${encodeURIComponent(courseId)}/enroll`,
+        {
+          method: "POST",
+        }
+      );
     } catch (e) {
-      if (String(e.message).includes("NO_API_BASE")) {
+      const msg = String(e?.message || e);
+      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
         return mockDB.enroll(courseId);
       }
       throw e;
@@ -256,11 +291,15 @@ export const LMSClient = {
   /** Unenroll from course. */
   async unenroll(courseId) {
     try {
-      return await apiFetch(`/courses/${encodeURIComponent(courseId)}/unenroll`, {
-        method: "POST",
-      });
+      return await apiFetch(
+        `/courses/${encodeURIComponent(courseId)}/unenroll`,
+        {
+          method: "POST",
+        }
+      );
     } catch (e) {
-      if (String(e.message).includes("NO_API_BASE")) {
+      const msg = String(e?.message || e);
+      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
         return mockDB.unenroll(courseId);
       }
       throw e;
@@ -272,11 +311,10 @@ export const LMSClient = {
     try {
       return await apiFetch(`/me/courses`);
     } catch (e) {
-      if (String(e.message).includes("NO_API_BASE")) {
+      const msg = String(e?.message || e);
+      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
         const ids = mockDB.getEnrollments();
-        return ids
-          .map((id) => mockDB.getCourse(id))
-          .filter(Boolean);
+        return ids.map((id) => mockDB.getCourse(id)).filter(Boolean);
       }
       throw e;
     }
@@ -286,11 +324,14 @@ export const LMSClient = {
   async submitAssignment(courseId, assignmentId, payload) {
     try {
       return await apiFetch(
-        `/courses/${encodeURIComponent(courseId)}/assignments/${encodeURIComponent(assignmentId)}/submissions`,
+        `/courses/${encodeURIComponent(courseId)}/assignments/${encodeURIComponent(
+          assignmentId
+        )}/submissions`,
         { method: "POST", body: JSON.stringify(payload || {}) }
       );
     } catch (e) {
-      if (String(e.message).includes("NO_API_BASE")) {
+      const msg = String(e?.message || e);
+      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
         return mockDB.submitAssignment(courseId, assignmentId, payload);
       }
       throw e;
