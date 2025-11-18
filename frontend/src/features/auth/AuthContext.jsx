@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AuthClient } from "./authClient";
 import supabase from "./supabaseClient";
+import { useToast } from "../ui/ToastContext";
 
 /**
  * PUBLIC_INTERFACE
@@ -40,6 +41,7 @@ function deriveRoleFromUser(user, fallbackRole = "student") {
  */
 export function AuthProvider({ children }) {
   const supabaseAvailable = Boolean(supabase);
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(() => {
     // For mock/local fallback we keep previous behavior
@@ -224,7 +226,13 @@ export function AuthProvider({ children }) {
     setLoading(true);
 
     if (!supabaseAvailable) {
-      // Preserve previous local session behavior
+      // Supabase not configured: show clear guidance toast and disable auth flows
+      try {
+        showToast(
+          "Supabase not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY to enable login/signup.",
+          { tone: "warning", duration: 5000 }
+        );
+      } catch { /* ignore toast failures */ }
       setLoading(false);
       return () => { ignore = true; };
     }

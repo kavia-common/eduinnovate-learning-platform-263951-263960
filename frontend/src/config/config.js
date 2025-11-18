@@ -62,7 +62,7 @@ export const config = (() => {
   // Validate critical runtime URLs (non-fatal; we log to console with no PII)
   const warnings = [];
   if (!env.API_BASE && !env.BACKEND_URL) {
-    warnings.push("API_BASE and BACKEND_URL are not set. API requests may fail.");
+    warnings.push("API_BASE and BACKEND_URL are not set. Some non-auth API requests may fall back to local mocks.");
   }
   if (!env.FRONTEND_URL) {
     warnings.push("FRONTEND_URL is not set. Some redirects may not work as expected.");

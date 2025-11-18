@@ -8,7 +8,6 @@
 import { apiUrl, getApiBase } from "../../config/config";
 import supabase from "../auth/supabaseClient";
 import SupabaseRepository from "../data/supabaseRepository";
-import { makeSupabaseClient } from "../auth/supabaseClient";
 
 // Simple in-memory mock store to simulate server state (courses, enrollments, assignments)
 const mockDB = (() => {
@@ -320,31 +319,18 @@ export const LMSClient = {
       try {
         return await SupabaseRepository.enroll(courseId);
       } catch (e) {
+        if (e?.code === "AUTH_REQUIRED") throw e;
         const errMsg = String(e?.message || e);
-        if (
-          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
-          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
-        ) {
-          // fallback
-        } else if (e?.code === "AUTH_REQUIRED") {
-          throw e; // let UI handle auth redirect
+        if (errMsg.includes("SUPABASE_NOT_CONFIGURED")) {
+          // If Supabase not configured, allow mock fallback below
+        } else {
+          // Table/policy missing -> surface to UI; do not call REST auth endpoints
+          throw e;
         }
       }
     }
-    try {
-      return await apiFetch(
-        `/courses/${encodeURIComponent(courseId)}/enroll`,
-        {
-          method: "POST",
-        }
-      );
-    } catch (e) {
-      const msg = String(e?.message || e);
-      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
-        return mockDB.enroll(courseId);
-      }
-      throw e;
-    }
+    // Supabase not configured: allow mock enrollment without REST
+    return mockDB.enroll(courseId);
   },
 
   /** Unenroll from course. */
@@ -353,31 +339,16 @@ export const LMSClient = {
       try {
         return await SupabaseRepository.unenroll(courseId);
       } catch (e) {
+        if (e?.code === "AUTH_REQUIRED") throw e;
         const errMsg = String(e?.message || e);
-        if (
-          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
-          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
-        ) {
-          // fallback
-        } else if (e?.code === "AUTH_REQUIRED") {
+        if (errMsg.includes("SUPABASE_NOT_CONFIGURED")) {
+          // allow mock fallback
+        } else {
           throw e;
         }
       }
     }
-    try {
-      return await apiFetch(
-        `/courses/${encodeURIComponent(courseId)}/unenroll`,
-        {
-          method: "POST",
-        }
-      );
-    } catch (e) {
-      const msg = String(e?.message || e);
-      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
-        return mockDB.unenroll(courseId);
-      }
-      throw e;
-    }
+    return mockDB.unenroll(courseId);
   },
 
   /** Get current enrollments for "user". In real app, bound to auth. */
@@ -386,27 +357,17 @@ export const LMSClient = {
       try {
         return await SupabaseRepository.listMyCourses();
       } catch (e) {
+        if (e?.code === "AUTH_REQUIRED") throw e;
         const errMsg = String(e?.message || e);
-        if (
-          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
-          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
-        ) {
-          // fallback
-        } else if (e?.code === "AUTH_REQUIRED") {
+        if (errMsg.includes("SUPABASE_NOT_CONFIGURED")) {
+          // allow mock fallback
+        } else {
           throw e;
         }
       }
     }
-    try {
-      return await apiFetch(`/me/courses`);
-    } catch (e) {
-      const msg = String(e?.message || e);
-      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
-        const ids = mockDB.getEnrollments();
-        return ids.map((id) => mockDB.getCourse(id)).filter(Boolean);
-      }
-      throw e;
-    }
+    const ids = mockDB.getEnrollments();
+    return ids.map((id) => mockDB.getCourse(id)).filter(Boolean);
   },
 
   /** Submit an assignment (supports text or file metadata placeholder). */
@@ -419,30 +380,15 @@ export const LMSClient = {
         });
         return { success: Boolean(res?.id) };
       } catch (e) {
+        if (e?.code === "AUTH_REQUIRED") throw e;
         const errMsg = String(e?.message || e);
-        if (
-          errMsg.includes("SUPABASE_NOT_CONFIGURED") ||
-          errMsg.includes("SUPABASE_TABLE_MISSING_OR_UNAUTHORIZED")
-        ) {
-          // fallback
-        } else if (e?.code === "AUTH_REQUIRED") {
+        if (errMsg.includes("SUPABASE_NOT_CONFIGURED")) {
+          // allow mock fallback
+        } else {
           throw e;
         }
       }
     }
-    try {
-      return await apiFetch(
-        `/courses/${encodeURIComponent(courseId)}/assignments/${encodeURIComponent(
-          assignmentId
-        )}/submissions`,
-        { method: "POST", body: JSON.stringify(payload || {}) }
-      );
-    } catch (e) {
-      const msg = String(e?.message || e);
-      if (msg.includes("NO_API_BASE") || msg.includes("API_UNREACHABLE")) {
-        return mockDB.submitAssignment(courseId, assignmentId, payload);
-      }
-      throw e;
-    }
+    return mockDB.submitAssignment(courseId, assignmentId, payload);
   },
 };
