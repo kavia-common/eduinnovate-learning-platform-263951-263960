@@ -8,6 +8,7 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useEnrollments } from "../enrollments/EnrollmentContext";
 import { useToast } from "../ui/ToastContext";
 import { useAuth } from "../auth/AuthContext";
+import AIAssistantPanel from "../ai/components/AIAssistantPanel";
 
 /**
  * PUBLIC_INTERFACE
@@ -109,6 +110,13 @@ export default function CourseDetail() {
           </li>
         ))}
       </ol>
+
+      <div style={{ marginTop: 16 }}>
+        <AIAssistantPanel
+          contextText={[course.title, course.description, ...(course.syllabus || []).map(s => `Week ${s.week}: ${s.title}`)].filter(Boolean).join("\n")}
+          contentId={course.id}
+        />
+      </div>
     </Card>
   );
 }

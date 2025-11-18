@@ -7,6 +7,7 @@ import Button from "../ui/Button";
 import { LMSClient } from "../api/client";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "../ui/ToastContext";
+import AIAssistantPanel from "../ai/components/AIAssistantPanel";
 
 /**
  * Format a date string to a friendly readable format.
@@ -94,6 +95,19 @@ export default function CourseAssignments() {
         </div>
       }
     >
+      <div style={{ marginBottom: 12 }}>
+        <AIAssistantPanel
+          contextText={
+            course
+              ? `${course.title}\nAssignments:\n${(items || [])
+                  .map((a) => `- ${a.title} (due ${fmtDate(a.dueDate)})`)
+                  .join("\n")}`
+              : ""
+          }
+          contentId={id}
+        />
+      </div>
+
       {items.length === 0 ? (
         <EmptyState title="No assignments" description="Check back later for new assignments." />
       ) : (

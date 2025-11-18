@@ -4,6 +4,7 @@ import AppRouter from './routes/AppRouter';
 import { ToastProvider } from './features/ui/ToastContext';
 import { EnrollmentProvider } from './features/enrollments/EnrollmentContext';
 import { AuthProvider } from './features/auth/AuthContext';
+import { AIProvider } from './features/ai/AIContext';
 
 /**
  * PUBLIC_INTERFACE
@@ -33,9 +34,11 @@ function App() {
     <ToastProvider>
       <EnvGuard>
         <AuthProvider>
-          <EnrollmentProvider>
-            <AppRouter />
-          </EnrollmentProvider>
+          <AIProvider>
+            <EnrollmentProvider>
+              <AppRouter />
+            </EnrollmentProvider>
+          </AIProvider>
         </AuthProvider>
       </EnvGuard>
     </ToastProvider>
